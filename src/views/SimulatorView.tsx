@@ -4,37 +4,25 @@ import {
   PendantState,
   ScenarioType,
   DeviceStatus,
-  LocationCoordinate,
   CaregiverAckPayload,
 } from '../types';
 import {
   INITIAL_STATE,
   SAFE_ZONES,
   createScenarioAlert,
-  formatTimeOfDay,
-  isZoneSafeAtHour,
 } from '../services/data';
 import { createRealtimeClient, RealtimeClient, ConnectionState } from '../services/realtime';
 import { translations, Language } from '../services/i18n';
 import { PendantDigitalTwin } from '../components/PendantDigitalTwin';
-import { KeralaMap } from '../components/KeralaMap';
 import { soundEffects } from '../services/sound';
 import {
   Radio,
-  Clock,
-  Battery,
-  Shield,
   Smartphone,
   ExternalLink,
   CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Volume2,
   Copy,
   Check,
   ChevronRight,
-  Eye,
-  Info,
 } from 'lucide-react';
 
 interface SimulatorViewProps {
@@ -45,7 +33,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   initialRoomCode = '8492',
 }) => {
   const [lang, setLang] = useState<Language>('en');
-  const [roomCode, setRoomCode] = useState<string>(initialRoomCode);
+  const [roomCode] = useState<string>(initialRoomCode);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionState>('waiting');
   const [state, setState] = useState<PendantState>({
     ...INITIAL_STATE,
@@ -127,10 +115,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     );
 
     const updatedLocation = newLocation || state.location;
-
-    // Check safe zone status
     const currentZoneObj = SAFE_ZONES[0];
-    const isSafeNow = isZoneSafeAtHour(currentZoneObj, state.timeOfDay);
 
     const updatedState: PendantState = {
       ...state,
@@ -141,7 +126,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       currentZone: {
         name_en: currentZoneObj.name_en,
         name_ml: currentZoneObj.name_ml,
-        isSafeNow: scenario === 'wandering' ? false : isSafeNow,
+        isSafeNow: scenario === 'wandering' ? false : true,
       },
       history: alert ? [alert, ...state.history] : state.history,
     };
@@ -158,57 +143,6 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     }
 
     // Broadcast updated state to caregiver phone
-    realtime.sendMessage({
-      type: 'STATE_SYNC',
-      payload: updatedState,
-    });
-  };
-
-  // Handle Battery Slider
-  const handleBatteryChange = (newBattery: number) => {
-    // Design target: 5 to 7 days
-    const days = Math.round(((newBattery / 100) * 6.5) * 10) / 10;
-    const updatedState: PendantState = {
-      ...state,
-      battery: newBattery,
-      batteryDaysRemaining: days,
-    };
-    setState(updatedState);
-    realtime.sendMessage({
-      type: 'STATE_SYNC',
-      payload: updatedState,
-    });
-  };
-
-  // Handle Time of Day Slider
-  const handleTimeOfDayChange = (newHour: number) => {
-    // Check if current zone is safe at this hour
-    const gardenZone = SAFE_ZONES[2];
-    const isGardenSafe = isZoneSafeAtHour(gardenZone, newHour);
-
-    const updatedState: PendantState = {
-      ...state,
-      timeOfDay: newHour,
-      currentZone: {
-        name_en: newHour < 6 || newHour > 21 ? 'Master Bedroom' : isGardenSafe ? 'Front Courtyard & Garden' : 'Living Room',
-        name_ml: newHour < 6 || newHour > 21 ? 'പ്രധാന കിടപ്പുമുറി' : isGardenSafe ? 'മുൻവശത്തെ തോട്ടവും പൂമുഖവും' : 'സ്വീകരണമുറി',
-        isSafeNow: true,
-      },
-    };
-    setState(updatedState);
-    realtime.sendMessage({
-      type: 'STATE_SYNC',
-      payload: updatedState,
-    });
-  };
-
-  // Handle Map Pin Drag
-  const handleLocationChange = (newLoc: LocationCoordinate) => {
-    const updatedState: PendantState = {
-      ...state,
-      location: newLoc,
-    };
-    setState(updatedState);
     realtime.sendMessage({
       type: 'STATE_SYNC',
       payload: updatedState,
@@ -322,7 +256,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
           </div>
         </div>
 
-        {/* Pairing Badge, Room Code, Split View Toggle & Language Switch */}
+        {/* Pairing Badge, Room Code, Open Phone URL & Language Switch */}
         <div className="flex flex-wrap items-center gap-3">
           {/* Connection Status Badge */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-dark border border-white/5 shadow-neu-sm-dark text-xs">
@@ -409,9 +343,9 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
         </div>
       )}
 
-      {/* Main Grid: Left Column (Digital Twin & Controls), Right Column (Scenarios, Map, Pairing, Logs) */}
-      <main className="grid grid-cols-1 lg:grid-cols-12 gap-6 my-6 flex-grow">
-        {/* Left Column: Digital Twin & Sliders (5 cols) */}
+      {/* Main Grid: Left Column (Digital Twin & Pairing), Right Column (Tactile Scenario Trigger Pad) */}
+      <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 my-auto py-6 flex-grow items-start">
+        {/* Left Column: Digital Twin & Pairing (5 cols) */}
         <section className="lg:col-span-5 flex flex-col gap-6">
           {/* Digital Twin Card */}
           <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col items-center">
@@ -455,98 +389,60 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
             </div>
           </div>
 
-          {/* Environmental Controls Card: Time of Day & Battery Sliders */}
-          <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col gap-5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-muted-dark flex items-center gap-2">
-              <Clock className="w-4 h-4 text-accent-peach" />
-              Dynamic Simulation Controls
-            </h2>
-
-            {/* Time of Day Slider */}
-            <div>
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-semibold text-primary-dark flex items-center gap-1.5">
-                  <span>Simulated Time of Day</span>
-                  <span className="text-[11px] text-muted-dark">
-                    (Safe zones adapt dynamically)
-                  </span>
-                </span>
-                <span className="font-mono font-bold text-accent-peach text-sm px-2.5 py-0.5 rounded-full bg-base-dark">
-                  {formatTimeOfDay(state.timeOfDay)}
-                </span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="23.75"
-                step="0.25"
-                value={state.timeOfDay}
-                onChange={(e) => handleTimeOfDayChange(parseFloat(e.target.value))}
-                className="w-full accent-accent-peach h-2 rounded-lg bg-base-dark cursor-pointer"
+          {/* Pairing & QR Code Card */}
+          <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col sm:flex-row items-center gap-6">
+            <div className="p-3 bg-white rounded-2xl shadow-md shrink-0">
+              <QRCodeSVG
+                value={phoneAppUrl}
+                size={112}
+                level="M"
+                includeMargin={false}
               />
-              <div className="flex justify-between text-[10px] text-muted-dark mt-1 font-mono">
-                <span>12 AM (Rest)</span>
-                <span>8 AM (Garden Safe)</span>
-                <span>2 PM (Noon)</span>
-                <span>6 PM (Sunset)</span>
-                <span>11 PM</span>
+            </div>
+
+            <div className="flex-grow space-y-2 text-center sm:text-left">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-dark">
+                  Phone Pairing
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-peach/20 text-accent-peach">
+                  Instant Scan
+                </span>
               </div>
-              <p className="text-[11px] text-muted-dark mt-2">
-                * Note: The courtyard garden is safe at 2:00 PM, but triggers an alert if entered
-                at 2:00 AM (sundowning protection).
+              <h3 className="text-sm font-bold text-primary-dark">
+                Scan with phone camera to open Caregiver App
+              </h3>
+              <p className="text-xs text-muted-dark">
+                Opens mobile interface and auto-joins room{' '}
+                <span className="font-mono text-accent-peach font-bold">#{roomCode}</span> via
+                Supabase Realtime broadcast.
               </p>
-            </div>
 
-            {/* Battery Slider */}
-            <div className="pt-2 border-t border-white/5">
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-semibold text-primary-dark flex items-center gap-1.5">
-                  <Battery className="w-3.5 h-3.5 text-status-safe" />
-                  <span>Battery Level</span>
-                  <span className="text-[11px] text-muted-dark">
-                    (Design target: 5 to 7 days)
-                  </span>
-                </span>
-                <span className="font-mono font-bold text-status-safe text-sm px-2.5 py-0.5 rounded-full bg-base-dark">
-                  {state.battery}% • {state.batteryDaysRemaining}d
-                </span>
-              </div>
-              <input
-                type="range"
-                min="5"
-                max="100"
-                step="1"
-                value={state.battery}
-                onChange={(e) => handleBatteryChange(parseInt(e.target.value))}
-                className="w-full accent-status-safe h-2 rounded-lg bg-base-dark cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-muted-dark mt-1 font-mono">
-                <span>5% (Dock Required)</span>
-                <span>50% (3.3 days)</span>
-                <span>100% (7.0 days target)</span>
-              </div>
-            </div>
-          </div>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
+                <button
+                  onClick={copyLink}
+                  className="px-3 py-1.5 rounded-full bg-base-dark border border-white/10 text-xs font-semibold text-primary-dark hover:text-accent-peach transition-colors flex items-center gap-1.5 shadow-neu-sm-dark"
+                >
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-status-safe" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? 'Link Copied!' : 'Copy Pairing Link'}</span>
+                </button>
 
-          {/* Privacy Panel: DPDP Act 2023 */}
-          <div className="p-5 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col gap-2">
-            <div className="flex items-center gap-2 text-status-safe font-bold text-xs uppercase tracking-wider">
-              <Shield className="w-4 h-4" />
-              <span>{t.dpdpNotice}</span>
-            </div>
-            <p className="text-xs text-muted-dark leading-relaxed">
-              {t.dpdpDetails}
-            </p>
-            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-white/5 text-[11px] text-primary-dark/80">
-              <span className="w-1.5 h-1.5 rounded-full bg-status-safe" />
-              <span>Edge IMU & Capacitive Skin Sensing Only</span>
+                <a
+                  href={phoneAppUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full bg-accent-peach text-base-dark text-xs font-bold hover:bg-accent-peachHover transition-colors flex items-center gap-1 shadow-md"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Test in New Tab</span>
+                </a>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Right Column: Scenarios, Interactive Map, Pairing Card, Event Log (7 cols) */}
+        {/* Right Column: Tactical Neumorphic Scenario Trigger Pad (7 cols) */}
         <section className="lg:col-span-7 flex flex-col gap-6">
-          {/* Tactical Neumorphic Scenario Trigger Pad */}
           <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -603,152 +499,6 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                   </button>
                 );
               })}
-            </div>
-          </div>
-
-          {/* Interactive Kerala Map with Safe Zone Circle */}
-          <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-muted-dark">
-                  Live Geo-Tracking & Dynamic Safe Zones
-                </h2>
-                <p className="text-xs text-primary-dark font-medium">
-                  Centered on Kakkanad, Kerala, India (Drag marker to simulate wandering)
-                </p>
-              </div>
-              <span className="text-[11px] font-mono text-status-safe px-2.5 py-0.5 rounded-full bg-status-safe/10">
-                OpenStreetMap
-              </span>
-            </div>
-
-            <KeralaMap
-              location={state.location}
-              status={state.status}
-              timeOfDay={state.timeOfDay}
-              interactive={true}
-              onLocationChange={handleLocationChange}
-              className="h-64 w-full rounded-2xl border border-white/10"
-            />
-
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-dark pt-1">
-              <div className="flex items-center gap-3">
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-status-safe" />
-                  Living Room & Bedroom
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-accent-peach" />
-                  Garden Courtyard (Day only)
-                </span>
-              </div>
-              <span className="font-mono text-primary-dark">
-                {state.location.lat.toFixed(5)}° N, {state.location.lng.toFixed(5)}° E
-              </span>
-            </div>
-          </div>
-
-          {/* Pairing & QR Code Card */}
-          <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col md:flex-row items-center gap-6">
-            <div className="p-3 bg-white rounded-2xl shadow-md shrink-0">
-              <QRCodeSVG
-                value={phoneAppUrl}
-                size={112}
-                level="M"
-                includeMargin={false}
-              />
-            </div>
-
-            <div className="flex-grow space-y-2 text-center md:text-left">
-              <div className="flex items-center justify-center md:justify-start gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-dark">
-                  Phone Pairing
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-peach/20 text-accent-peach">
-                  Instant Scan
-                </span>
-              </div>
-              <h3 className="text-sm font-bold text-primary-dark">
-                Scan with phone camera to open Caregiver App
-              </h3>
-              <p className="text-xs text-muted-dark">
-                Opens mobile interface and auto-joins room{' '}
-                <span className="font-mono text-accent-peach font-bold">#{roomCode}</span> via
-                Supabase Realtime broadcast.
-              </p>
-
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1">
-                <button
-                  onClick={copyLink}
-                  className="px-3 py-1.5 rounded-full bg-base-dark border border-white/10 text-xs font-semibold text-primary-dark hover:text-accent-peach transition-colors flex items-center gap-1.5 shadow-neu-sm-dark"
-                >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-status-safe" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedLink ? 'Link Copied!' : 'Copy Pairing Link'}</span>
-                </button>
-
-                <a
-                  href={phoneAppUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-full bg-accent-peach text-base-dark text-xs font-bold hover:bg-accent-peachHover transition-colors flex items-center gap-1 shadow-md"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Test in New Tab</span>
-                </a>
-              </div>
-            </div>
-          </div>
-
-          {/* Live Event Log */}
-          <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-muted-dark">
-                Live Simulator Telemetry Event Log
-              </h2>
-              <span className="text-[11px] font-mono text-muted-dark">
-                {state.history.length} logged events
-              </span>
-            </div>
-
-            <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
-              {state.history.map((event) => (
-                <div
-                  key={event.id}
-                  className="p-3 rounded-2xl bg-base-dark/60 border border-white/5 flex items-start justify-between gap-3 text-xs"
-                >
-                  <div className="flex items-start gap-2.5">
-                    <span
-                      className={`mt-1 w-2 h-2 rounded-full shrink-0 ${
-                        event.severity === 'critical'
-                          ? 'bg-status-critical'
-                          : event.severity === 'warning'
-                          ? 'bg-status-warning'
-                          : 'bg-status-safe'
-                      }`}
-                    />
-                    <div>
-                      <div className="font-bold text-primary-dark flex items-center gap-2">
-                        <span>{lang === 'en' ? event.title_en : event.title_ml}</span>
-                        {event.acknowledged && (
-                          <span className="text-[10px] text-status-safe font-normal px-2 py-0.2 rounded-full bg-status-safe/10">
-                            ✓ Acknowledged by caregiver
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-muted-dark mt-0.5">
-                        {lang === 'en' ? event.description_en : event.description_ml}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-mono text-[10px] text-muted-dark shrink-0">
-                    {new Date(event.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </span>
-                </div>
-              ))}
             </div>
           </div>
         </section>
