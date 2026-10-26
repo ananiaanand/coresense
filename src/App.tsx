@@ -94,7 +94,9 @@ export function App() {
   return (
     <div className="relative min-h-screen">
       {/* Route Switcher & Theme Toggle Floater */}
-      <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 p-1.5 rounded-full bg-surface-dark/90 backdrop-blur-md border border-white/10 shadow-2xl">
+      <div className={`fixed ${
+        currentPath === '/app' ? 'bottom-20 right-4' : 'bottom-6 right-6'
+      } z-50 flex items-center gap-1.5 p-1.5 rounded-full bg-surface-dark/95 backdrop-blur-md border border-white/10 shadow-2xl transition-all duration-300`}>
         <button
           onClick={() => navigateTo('/simulator')}
           className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
