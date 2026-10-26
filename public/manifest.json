@@ -1,0 +1,16 @@
+{
+  "short_name": "Coresense",
+  "name": "Coresense Caregiver App",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/app",
+  "background_color": "#2A2527",
+  "theme_color": "#2A2527",
+  "display": "standalone",
+  "orientation": "portrait"
+}
