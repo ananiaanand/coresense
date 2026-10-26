@@ -170,7 +170,7 @@ export const KeralaMap: React.FC<KeralaMapProps> = ({
   }, [location, status, interactive, onLocationChange]);
 
   return (
-    <div className={`relative overflow-hidden shadow-inner ${className}`}>
+    <div className={`relative overflow-hidden shadow-inner isolate z-0 ${className}`}>
       <div ref={mapContainerRef} className="h-full w-full" />
       {interactive && (
         <div className="absolute top-2 left-2 z-[400] bg-surface-dark/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] text-muted-dark border border-white/5 pointer-events-none shadow-md flex items-center gap-1.5">

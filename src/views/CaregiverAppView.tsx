@@ -691,9 +691,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
             initial={{ opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            className={`${
-              isEmbeddedFrame ? 'absolute' : 'fixed'
-            } inset-0 z-50 bg-base-dark/95 backdrop-blur-xl flex flex-col justify-between p-4 sm:p-5 overflow-y-auto`}
+            className="fixed inset-0 z-[9999] bg-[#2A2527] flex flex-col justify-between p-4 sm:p-6 overflow-y-auto"
           >
             {/* Top Indicator */}
             <div className="flex items-center justify-between pb-1">
@@ -842,9 +840,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
 
       {/* Call Confirmation Dialog */}
       {showCallConfirm && (
-        <div className={`${
-          isEmbeddedFrame ? 'absolute' : 'fixed'
-        } inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-6`}>
+        <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="w-full max-w-xs p-6 rounded-4xl bg-surface-dark border border-white/10 shadow-2xl space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-status-safe/20 text-status-safe flex items-center justify-center mx-auto">
               <Phone className="w-6 h-6" />

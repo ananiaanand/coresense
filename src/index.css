@@ -36,6 +36,8 @@ body {
 .leaflet-container {
   background: #231E20 !important;
   font-family: inherit;
+  isolation: isolate;
+  z-index: 0 !important;
 }
 
 .leaflet-tile {
