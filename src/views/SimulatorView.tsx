@@ -33,19 +33,16 @@ import {
   Copy,
   Check,
   ChevronRight,
-  Split,
   Eye,
   Info,
 } from 'lucide-react';
 
 interface SimulatorViewProps {
   initialRoomCode?: string;
-  onNavigateToSplit?: () => void;
 }
 
 export const SimulatorView: React.FC<SimulatorViewProps> = ({
   initialRoomCode = '8492',
-  onNavigateToSplit,
 }) => {
   const [lang, setLang] = useState<Language>('en');
   const [roomCode, setRoomCode] = useState<string>(initialRoomCode);
@@ -345,18 +342,6 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
               Room #{roomCode}
             </span>
           </div>
-
-          {/* Quick Launch Buttons */}
-          {onNavigateToSplit && (
-            <button
-              onClick={onNavigateToSplit}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-dark border border-white/5 shadow-neu-sm-dark text-xs font-semibold text-primary-dark hover:text-accent-peach transition-colors"
-              title="Open side-by-side demo with phone frame on this screen"
-            >
-              <Split className="w-3.5 h-3.5" />
-              <span>Split Demo</span>
-            </button>
-          )}
 
           <a
             href={phoneAppUrl}

@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { SimulatorView } from './views/SimulatorView';
 import { CaregiverAppView } from './views/CaregiverAppView';
-import { SplitDemoView } from './views/SplitDemoView';
-import { HomeSelectorView } from './views/HomeSelectorView';
-import { Sun, Moon, Laptop, Smartphone, Split, Home } from 'lucide-react';
+import { Sun, Moon, Laptop, Smartphone } from 'lucide-react';
 
 export function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => {
-    if (typeof window === 'undefined') return '/';
+    if (typeof window === 'undefined') return '/simulator';
     const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
 
-    if (path.startsWith('/simulator') || hash.startsWith('#/simulator')) return '/simulator';
     if (path.startsWith('/app') || hash.startsWith('#/app')) return '/app';
-    if (path.startsWith('/demo') || hash.startsWith('#/demo')) return '/demo';
-    return '/';
+    return '/simulator';
   });
 
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -59,14 +55,10 @@ export function App() {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
 
-      if (path.startsWith('/simulator') || hash.startsWith('#/simulator')) {
-        setCurrentPath('/simulator');
-      } else if (path.startsWith('/app') || hash.startsWith('#/app')) {
+      if (path.startsWith('/app') || hash.startsWith('#/app')) {
         setCurrentPath('/app');
-      } else if (path.startsWith('/demo') || hash.startsWith('#/demo')) {
-        setCurrentPath('/demo');
       } else {
-        setCurrentPath('/');
+        setCurrentPath('/simulator');
       }
     };
 
@@ -101,85 +93,50 @@ export function App() {
 
   return (
     <div className="relative min-h-screen">
-      {/* Global Quick Route Switcher & Theme Toggle Floater */}
+      {/* Route Switcher & Theme Toggle Floater */}
       <div className="fixed bottom-4 right-4 z-50 flex items-center gap-1.5 p-1.5 rounded-full bg-surface-dark/90 backdrop-blur-md border border-white/10 shadow-2xl">
         <button
-          onClick={() => navigateTo('/')}
-          className={`p-2 rounded-full transition-colors ${
-            currentPath === '/'
-              ? 'bg-accent-peach text-base-dark'
-              : 'text-muted-dark hover:text-primary-dark'
-          }`}
-          title="Home Selector"
-        >
-          <Home className="w-4 h-4" />
-        </button>
-
-        <button
           onClick={() => navigateTo('/simulator')}
-          className={`p-2 rounded-full transition-colors ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             currentPath === '/simulator'
-              ? 'bg-accent-peach text-base-dark'
+              ? 'bg-accent-peach text-base-dark shadow-sm'
               : 'text-muted-dark hover:text-primary-dark'
           }`}
           title="Laptop Simulator (/simulator)"
         >
-          <Laptop className="w-4 h-4" />
+          <Laptop className="w-3.5 h-3.5" />
+          <span>Simulator</span>
         </button>
 
         <button
           onClick={() => navigateTo('/app')}
-          className={`p-2 rounded-full transition-colors ${
+          className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 ${
             currentPath === '/app'
-              ? 'bg-accent-peach text-base-dark'
+              ? 'bg-accent-peach text-base-dark shadow-sm'
               : 'text-muted-dark hover:text-primary-dark'
           }`}
           title="Caregiver App (/app)"
         >
-          <Smartphone className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={() => navigateTo('/demo')}
-          className={`p-2 rounded-full transition-colors ${
-            currentPath === '/demo'
-              ? 'bg-accent-peach text-base-dark'
-              : 'text-muted-dark hover:text-primary-dark'
-          }`}
-          title="Split Demo (/demo)"
-        >
-          <Split className="w-4 h-4" />
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>Caregiver App</span>
         </button>
 
         <div className="w-[1px] h-4 bg-white/10 mx-0.5" />
 
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-full text-muted-dark hover:text-primary-dark transition-colors"
+          className="p-1.5 rounded-full text-muted-dark hover:text-primary-dark transition-colors"
           title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
         >
           {theme === 'dark' ? <Sun className="w-4 h-4 text-accent-peach" /> : <Moon className="w-4 h-4" />}
         </button>
       </div>
 
-      {/* Route Views */}
-      {currentPath === '/simulator' && (
-        <SimulatorView
-          initialRoomCode={roomCode}
-          onNavigateToSplit={() => navigateTo('/demo')}
-        />
-      )}
-
-      {currentPath === '/app' && (
+      {/* Primary Routes */}
+      {currentPath === '/app' ? (
         <CaregiverAppView roomCodeFromQuery={roomCode} />
-      )}
-
-      {currentPath === '/demo' && (
-        <SplitDemoView onBackToSelector={() => navigateTo('/')} />
-      )}
-
-      {currentPath === '/' && (
-        <HomeSelectorView onSelectRoute={(route) => navigateTo(route)} />
+      ) : (
+        <SimulatorView initialRoomCode={roomCode} />
       )}
     </div>
   );

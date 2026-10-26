@@ -5,22 +5,15 @@
 
 ---
 
-## 🌟 Pitch Setup Architecture
+## 🌟 Pitch Setup (Two Interfaces)
 
-- **Interface A — Hardware Simulator (`/simulator`)**  
+- **Interface A — Hardware Simulator (`/simulator` or `/`)**  
   *Designed for laptop / presenter screen (landscape).*  
   Controls the pendant digital twin, 8 real-time sensor triggers, dynamic time-of-day slider, 5–7 day battery slider, interactive Kerala GPS map, live event log, pairing QR code, and DPDP Act 2023 privacy panel.
 
 - **Interface B — Caregiver App (`/app`)**  
   *Designed for mobile phone / family member's view (portrait PWA).*  
   Receives telemetry in under 1 second. Displays wearer status, battery days remaining, live OpenStreetMap location, full-screen alert overlay with harmonic audio chime, vibration (`navigator.vibrate`), and action buttons (*Acknowledge*, *Call*, *Navigate*). Acknowledging transmits an instant callback back to the simulator screen.
-
-- **Dual-View Split Pitch Demo (`/demo`)**  
-  *Single-screen fallback for offline pitches or projector stages.*  
-  Renders the Laptop Simulator on the left and a photorealistic iPhone 15 frame on the right with zero-latency in-memory and local broadcast sync.
-
-- **Landing & Presentation Mode Selector (`/`)**  
-  Launchpad for the presenter with one-click route selection and live pitch script notes.
 
 ---
 
@@ -67,15 +60,13 @@ Coresense uses **Supabase Realtime Broadcast channels** to sync events between a
    VITE_SUPABASE_URL=https://xyzcompany.supabase.co
    VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
    ```
-6. That's it! When you open `/simulator` on your laptop and scan the QR code with your smartphone (`/app?room=XXXX`), both devices join `coresense-room-XXXX` and synchronize in under 400ms.
-
-> **Offline / Demo Resilience:** Coresense contains a built-in hybrid fallback engine. If Supabase keys are not set, it uses in-memory dispatch and `BroadcastChannel`/`localStorage` cross-tab events so single-screen and split-screen demos work offline anywhere!
+6. Open `/simulator` on your laptop and scan the QR code with your phone (`/app?room=XXXX`). Both devices join `coresense-room-XXXX` and synchronize in under 400ms.
 
 ---
 
 ## 🚢 Deployment to Vercel
 
-Coresense is pre-configured with `vercel.json` SPA rewrites so that `/simulator`, `/app`, and `/demo` route cleanly on Vercel without 404 errors.
+Coresense is pre-configured with `vercel.json` SPA rewrites so that `/simulator` and `/app` route cleanly on Vercel without 404 errors.
 
 ### Option A: Via Vercel CLI
 ```bash
@@ -114,10 +105,8 @@ CoreSense/
 │   │   ├── sound.ts         # Web Audio API harmonic alert chimes & SMS tones
 │   │   └── vibration.ts     # Navigator.vibrate mobile haptics
 │   ├── views/
-│   │   ├── HomeSelectorView.tsx # Presentation launchpad & demo script guide
 │   │   ├── SimulatorView.tsx    # Interface A (Laptop simulator)
-│   │   ├── CaregiverAppView.tsx # Interface B (Mobile Caregiver PWA)
-│   │   └── SplitDemoView.tsx    # Dual-screen simulator + iPhone 15 frame in one
+│   │   └── CaregiverAppView.tsx # Interface B (Mobile Caregiver PWA)
 │   ├── types/
 │   │   └── index.ts         # Telemetry, AlertEvent, and PendantState TypeScript types
 │   ├── App.tsx              # Central router and dark/light theme engine
