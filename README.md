@@ -3,6 +3,10 @@
 > **"A Little Pendant. A Little More Peace of Mind."**  
 > A dual-interface live pitch demo simulating an intelligent, discreet dementia care pendant and its companion family caregiver mobile application with real-time cross-device synchronization.
 
+### 🔗 Live Production Deployment
+- **Hardware Simulator (Laptop)**: [https://coresense-one.vercel.app/simulator](https://coresense-one.vercel.app/simulator) (or [`https://coresense-one.vercel.app`](https://coresense-one.vercel.app))
+- **Caregiver App (Phone)**: [https://coresense-one.vercel.app/app](https://coresense-one.vercel.app/app)
+
 ---
 
 ## 🌟 Pitch Setup (Two Interfaces)
