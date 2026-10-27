@@ -98,6 +98,22 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
     };
   }, [roomCode, soundEnabled]);
 
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+  // Auto-unlock audio on user tap
+  useEffect(() => {
+    const handleUnlock = () => {
+      soundEffects.unlockAudio();
+      setAudioUnlocked(true);
+    };
+    window.addEventListener('click', handleUnlock, { once: true });
+    window.addEventListener('touchstart', handleUnlock, { once: true });
+    return () => {
+      window.removeEventListener('click', handleUnlock);
+      window.removeEventListener('touchstart', handleUnlock);
+    };
+  }, []);
+
   // Handle incoming alert with audio and vibration
   const triggerIncomingAlert = (alert: AlertEvent) => {
     setActiveAlert(alert);
@@ -109,9 +125,18 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
       triggerVibration([200, 100, 200]);
     }
 
-    // Audio chime
+    // High-priority audio feedback with increased volume based on pitch simulation
     if (soundEnabled) {
-      if (alert.isSmsBackup) {
+      soundEffects.unlockAudio();
+      if (alert.scenario === 'fall_detected') {
+        soundEffects.playFallAlert();
+      } else if (alert.scenario === 'wandering') {
+        soundEffects.playWanderingAlert();
+      } else if (alert.scenario === 'night_movement') {
+        soundEffects.playNightMovementAlert();
+      } else if (alert.scenario === 'pendant_removed') {
+        soundEffects.playPendantRemovedAlert();
+      } else if (alert.isSmsBackup) {
         soundEffects.playSmsNotification();
       } else if (alert.severity === 'critical') {
         soundEffects.playEmergencyChime();
@@ -219,9 +244,17 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
         {/* Header Controls: Sound & Language Switcher */}
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
-            className="w-8 h-8 rounded-full bg-surface-dark shadow-neu-sm-dark flex items-center justify-center text-muted-dark hover:text-primary-dark border border-white/5"
-            title={soundEnabled ? 'Mute alert sounds' : 'Enable alert sounds'}
+            onClick={() => {
+              const next = !soundEnabled;
+              setSoundEnabled(next);
+              soundEffects.unlockAudio();
+              setAudioUnlocked(true);
+              if (next) {
+                soundEffects.playAcknowledgeChime();
+              }
+            }}
+            className="w-8 h-8 rounded-full bg-surface-dark shadow-neu-sm-dark flex items-center justify-center text-muted-dark hover:text-primary-dark border border-white/5 transition-transform active:scale-95"
+            title={soundEnabled ? 'Mute alert sounds' : 'Enable loud alert sounds'}
           >
             {soundEnabled ? (
               <Volume2 className="w-4 h-4 text-accent-peach" />
@@ -254,6 +287,28 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
           </div>
         </div>
       </header>
+
+      {/* Audio Unlock Banner for Mobile Browsers */}
+      {!audioUnlocked && (
+        <div
+          onClick={() => {
+            soundEffects.unlockAudio();
+            soundEffects.playAcknowledgeChime();
+            setAudioUnlocked(true);
+          }}
+          className="bg-accent-peach/15 border-b border-accent-peach/30 px-5 py-2 flex items-center justify-between text-xs text-accent-peach cursor-pointer hover:bg-accent-peach/25 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Volume2 className="w-4 h-4 animate-pulse text-accent-peach" />
+            <span className="font-semibold text-[11px]">
+              Tap anywhere to unlock loud audio alarms on phone
+            </span>
+          </div>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-accent-peach text-base-dark">
+            Enable
+          </span>
+        </div>
+      )}
 
       {/* Main Tab Content */}
       <main className="flex-grow px-5 py-4 pb-24 overflow-y-auto">
@@ -657,6 +712,64 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
                 Target design: 5 to 7 days continuous run between charges using ultra-low-power edge
                 ML sleep states and event-driven cellular telemetry.
               </p>
+            </div>
+
+            {/* High-Volume Simulation Sound Test Pad */}
+            <div className="p-4 rounded-3xl bg-surface-dark border border-white/5 shadow-neu-flat-dark space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-status-warning font-bold text-xs uppercase">
+                  <Volume2 className="w-4 h-4 text-accent-peach" />
+                  <span>High-Volume Alert Audio Test</span>
+                </div>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-base-dark text-status-safe font-semibold">
+                  Boosted 0.85+
+                </span>
+              </div>
+              <p className="text-xs text-muted-dark">
+                Tap any button below to test the loud audio alarms on this device:
+              </p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    soundEffects.unlockAudio();
+                    soundEffects.playFallAlert();
+                  }}
+                  className="p-2.5 rounded-2xl bg-base-dark border border-red-500/20 text-primary-dark text-left text-xs font-bold hover:border-red-500/40 transition-colors"
+                >
+                  <span className="text-status-warning block text-[10px]">Fall Detected</span>
+                  <span className="text-muted-dark text-[10px]">Loud Multi-Pulse Alarm</span>
+                </button>
+                <button
+                  onClick={() => {
+                    soundEffects.unlockAudio();
+                    soundEffects.playWanderingAlert();
+                  }}
+                  className="p-2.5 rounded-2xl bg-base-dark border border-red-500/20 text-primary-dark text-left text-xs font-bold hover:border-red-500/40 transition-colors"
+                >
+                  <span className="text-status-warning block text-[10px]">Left Safe Zone</span>
+                  <span className="text-muted-dark text-[10px]">Loud Geofence Siren</span>
+                </button>
+                <button
+                  onClick={() => {
+                    soundEffects.unlockAudio();
+                    soundEffects.playNightMovementAlert();
+                  }}
+                  className="p-2.5 rounded-2xl bg-base-dark border border-accent-peach/20 text-primary-dark text-left text-xs font-bold hover:border-accent-peach/40 transition-colors"
+                >
+                  <span className="text-accent-peach block text-[10px]">Night Movement</span>
+                  <span className="text-muted-dark text-[10px]">Loud Wake-up Chime</span>
+                </button>
+                <button
+                  onClick={() => {
+                    soundEffects.unlockAudio();
+                    soundEffects.playPendantRemovedAlert();
+                  }}
+                  className="p-2.5 rounded-2xl bg-base-dark border border-accent-peach/20 text-primary-dark text-left text-xs font-bold hover:border-accent-peach/40 transition-colors"
+                >
+                  <span className="text-accent-peach block text-[10px]">Pendant Removed</span>
+                  <span className="text-muted-dark text-[10px]">Loud Detachment Beep</span>
+                </button>
+              </div>
             </div>
 
             {/* Room Code Pairing Info */}

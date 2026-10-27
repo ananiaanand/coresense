@@ -23,6 +23,7 @@ import {
   Copy,
   Check,
   ChevronRight,
+  Wifi,
 } from 'lucide-react';
 
 interface SimulatorViewProps {
@@ -42,6 +43,11 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>('normal');
   const [caregiverAckNotification, setCaregiverAckNotification] = useState<CaregiverAckPayload | null>(null);
+  const [networkHost, setNetworkHost] = useState<string>('');
+
+  const stateRef = React.useRef(state);
+  stateRef.current = state;
+
   const clientRef = React.useRef<RealtimeClient | null>(null);
   if (!clientRef.current) {
     clientRef.current = createRealtimeClient();
@@ -50,9 +56,28 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
 
   const t = translations[lang];
 
-  // URL for Caregiver App pairing
+  // Auto-detect local Wi-Fi / LAN IP from Vite dev server if running on localhost
+  useEffect(() => {
+    fetch('/api/host-info')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.primaryIp && data.primaryIp !== 'localhost') {
+          setNetworkHost(data.primaryIp);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Compute pairing URL: if running on localhost, use the detected Wi-Fi IP so mobile browsers can connect!
+  const isLocalHost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1'
+  );
+
   const phoneAppUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/app?room=${roomCode}`
+    ? (isLocalHost && networkHost
+        ? `${window.location.protocol}//${networkHost}:${window.location.port || '5173'}/app?room=${roomCode}`
+        : `${window.location.origin}/app?room=${roomCode}`)
     : `https://coresense.app/app?room=${roomCode}`;
 
   // Join Realtime Room
@@ -89,8 +114,13 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
           setTimeout(() => {
             setCaregiverAckNotification(null);
           }, 8000);
-        } else if (msg.type === 'PHONE_JOINED') {
+        } else if (msg.type === 'PHONE_JOINED' || msg.type === 'REQUEST_STATE') {
           setConnectionStatus('connected');
+          // Instantly sync current full state to caregiver phone so it activates immediately!
+          realtime.sendMessage({
+            type: 'STATE_SYNC',
+            payload: stateRef.current,
+          });
         }
       },
       onConnectionChange: (status) => {
@@ -133,9 +163,17 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
 
     setState(updatedState);
 
-    // Audio feedback
+    // Audio feedback with increased specific sounds for pitch demo
     if (scenario === 'normal') {
       soundEffects.playResetTone();
+    } else if (scenario === 'fall_detected') {
+      soundEffects.playFallAlert();
+    } else if (scenario === 'wandering') {
+      soundEffects.playWanderingAlert();
+    } else if (scenario === 'night_movement') {
+      soundEffects.playNightMovementAlert();
+    } else if (scenario === 'pendant_removed') {
+      soundEffects.playPendantRemovedAlert();
     } else if (status === 'alert') {
       soundEffects.playEmergencyChime();
     } else {
@@ -147,6 +185,12 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       type: 'STATE_SYNC',
       payload: updatedState,
     });
+    if (alert) {
+      realtime.sendMessage({
+        type: 'ALERT_TRIGGERED',
+        payload: alert,
+      });
+    }
   };
 
   // Copy Phone Pairing Link
@@ -394,7 +438,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
             <div className="p-3 bg-white rounded-2xl shadow-md shrink-0">
               <QRCodeSVG
                 value={phoneAppUrl}
-                size={112}
+                size={116}
                 level="M"
                 includeMargin={false}
               />
@@ -403,38 +447,44 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
             <div className="flex-grow space-y-2 text-center sm:text-left">
               <div className="flex items-center justify-center sm:justify-start gap-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-dark">
-                  Phone Pairing
+                  Cross-Device Pairing
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-accent-peach/20 text-accent-peach">
-                  Instant Scan
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-status-safe/20 text-status-safe flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-status-safe animate-pulse" />
+                  Live Sync
                 </span>
               </div>
               <h3 className="text-sm font-bold text-primary-dark">
-                Scan with phone camera to open Caregiver App
+                Scan or paste link in mobile browser
               </h3>
               <p className="text-xs text-muted-dark">
-                Opens mobile interface and auto-joins room{' '}
-                <span className="font-mono text-accent-peach font-bold">#{roomCode}</span> via
-                Supabase Realtime broadcast.
+                Opens Caregiver App and auto-links with this laptop simulator in real time.
               </p>
+
+              {networkHost && isLocalHost && (
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-base-dark/70 border border-white/5 text-[11px] font-mono text-accent-peach">
+                  <Wifi className="w-3 h-3 text-accent-peach" />
+                  <span>Wi-Fi Network: {networkHost}</span>
+                </div>
+              )}
 
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1">
                 <button
                   onClick={copyLink}
-                  className="px-3 py-1.5 rounded-full bg-base-dark border border-white/10 text-xs font-semibold text-primary-dark hover:text-accent-peach transition-colors flex items-center gap-1.5 shadow-neu-sm-dark"
+                  className="px-3.5 py-1.5 rounded-full bg-accent-peach text-base-dark text-xs font-bold hover:bg-accent-peachHover transition-colors flex items-center gap-1.5 shadow-md"
                 >
-                  {copiedLink ? <Check className="w-3.5 h-3.5 text-status-safe" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedLink ? 'Link Copied!' : 'Copy Pairing Link'}</span>
+                  {copiedLink ? <Check className="w-3.5 h-3.5 text-base-dark" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedLink ? 'Link Copied for Mobile!' : 'Copy Pairing Link'}</span>
                 </button>
 
                 <a
                   href={phoneAppUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-1.5 rounded-full bg-accent-peach text-base-dark text-xs font-bold hover:bg-accent-peachHover transition-colors flex items-center gap-1 shadow-md"
+                  className="px-3 py-1.5 rounded-full bg-surface-dark border border-white/10 text-primary-dark text-xs font-semibold hover:border-white/20 transition-colors flex items-center gap-1 shadow-neu-sm-dark"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Test in New Tab</span>
+                  <ExternalLink className="w-3.5 h-3.5 opacity-70" />
+                  <span>Test in Tab</span>
                 </a>
               </div>
             </div>

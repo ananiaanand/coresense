@@ -82,4 +82,5 @@ export type SyncMessage =
   | { type: 'ALERT_TRIGGERED'; payload: AlertEvent }
   | { type: 'CAREGIVER_ACK'; payload: CaregiverAckPayload }
   | { type: 'PHONE_JOINED'; payload: { roomCode: string; joinedAt: number } }
+  | { type: 'REQUEST_STATE'; payload: { roomCode: string } }
   | { type: 'HEARTBEAT'; payload: { sender: 'simulator' | 'phone'; timestamp: number } };
