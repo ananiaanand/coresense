@@ -75,6 +75,14 @@ export interface PendantState {
   activeAlert: AlertEvent | null;
   history: AlertEvent[];
   lastCaregiverAck?: CaregiverAckPayload | null;
+  isIncomingCallActive?: boolean;
+  incomingCallInfo?: {
+    caller: string;
+    timestamp: number;
+    alertId?: string;
+  } | null;
+  isDeviceBatterySynced?: boolean;
+  isCharging?: boolean;
 }
 
 export type SyncMessage =
@@ -83,4 +91,20 @@ export type SyncMessage =
   | { type: 'CAREGIVER_ACK'; payload: CaregiverAckPayload }
   | { type: 'PHONE_JOINED'; payload: { roomCode: string; joinedAt: number } }
   | { type: 'REQUEST_STATE'; payload: { roomCode: string } }
-  | { type: 'HEARTBEAT'; payload: { sender: 'simulator' | 'phone'; timestamp: number } };
+  | { type: 'HEARTBEAT'; payload: { sender: 'simulator' | 'phone'; timestamp: number } }
+  | {
+      type: 'CALL_WEARER';
+      payload: {
+        caller: string;
+        timestamp: number;
+        alertId?: string;
+        isSosAlarm: boolean;
+      };
+    }
+  | {
+      type: 'END_CALL';
+      payload: {
+        endedBy: 'caregiver' | 'wearer';
+        timestamp: number;
+      };
+    };

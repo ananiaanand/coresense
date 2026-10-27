@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { DeviceStatus } from '../types';
-import { Activity, ShieldCheck, AlertCircle, WifiOff, Zap } from 'lucide-react';
+import { Activity, ShieldCheck, AlertCircle, WifiOff, Zap, PhoneCall, Volume2 } from 'lucide-react';
 
 interface PendantDigitalTwinProps {
   status: DeviceStatus;
@@ -9,6 +9,10 @@ interface PendantDigitalTwinProps {
   batteryDaysRemaining: number;
   isDataConnected: boolean;
   className?: string;
+  isIncomingCall?: boolean;
+  callerName?: string;
+  isDeviceBatterySynced?: boolean;
+  isCharging?: boolean;
 }
 
 export const PendantDigitalTwin: React.FC<PendantDigitalTwinProps> = ({
@@ -17,9 +21,22 @@ export const PendantDigitalTwin: React.FC<PendantDigitalTwinProps> = ({
   batteryDaysRemaining,
   isDataConnected,
   className = '',
+  isIncomingCall = false,
+  callerName = 'Caregiver',
+  isDeviceBatterySynced = false,
+  isCharging = false,
 }) => {
   // Status color mapper
   const getStatusDetails = () => {
+    if (isIncomingCall) {
+      return {
+        color: '#E57373',
+        glow: 'rgba(229, 115, 115, 0.7)',
+        label: 'SOS SIREN ACTIVE',
+        icon: PhoneCall,
+        subtext: `Incoming call from ${callerName} • Speaker at 85dB`,
+      };
+    }
     switch (status) {
       case 'alert':
         return {
@@ -78,15 +95,31 @@ export const PendantDigitalTwin: React.FC<PendantDigitalTwinProps> = ({
 
       {/* Neumorphic Hexagonal Device Container */}
       <div className="relative w-64 h-64 flex items-center justify-center">
+        {/* Acoustic Soundwave Ripples for Loud SOS Siren */}
+        {isIncomingCall && (
+          <>
+            <motion.div
+              animate={{ scale: [1, 1.4, 1.85], opacity: [0.7, 0.35, 0] }}
+              transition={{ repeat: Infinity, duration: 1.1, ease: 'easeOut' }}
+              className="absolute w-56 h-56 rounded-full border-2 border-status-alert pointer-events-none z-0"
+            />
+            <motion.div
+              animate={{ scale: [1, 1.3, 1.65], opacity: [0.8, 0.4, 0] }}
+              transition={{ repeat: Infinity, duration: 1.1, delay: 0.3, ease: 'easeOut' }}
+              className="absolute w-56 h-56 rounded-full border-2 border-accent-peach pointer-events-none z-0"
+            />
+          </>
+        )}
+
         {/* Soft Ambient Background Glow */}
         <motion.div
           animate={{
-            scale: status === 'alert' ? [1, 1.15, 1] : status === 'warning' ? [1, 1.08, 1] : 1,
-            opacity: status === 'alert' ? [0.4, 0.7, 0.4] : 0.3,
+            scale: isIncomingCall ? [1, 1.25, 1] : status === 'alert' ? [1, 1.15, 1] : status === 'warning' ? [1, 1.08, 1] : 1,
+            opacity: isIncomingCall ? [0.6, 0.9, 0.6] : status === 'alert' ? [0.4, 0.7, 0.4] : 0.3,
           }}
           transition={{
             repeat: Infinity,
-            duration: status === 'alert' ? 1.2 : 2.5,
+            duration: isIncomingCall ? 0.6 : status === 'alert' ? 1.2 : 2.5,
             ease: 'easeInOut',
           }}
           style={{
@@ -97,8 +130,10 @@ export const PendantDigitalTwin: React.FC<PendantDigitalTwinProps> = ({
         />
 
         {/* Outer Hexagon Shell with Neumorphic Shadows */}
-        <div
-          className="relative w-56 h-56 flex items-center justify-center transition-all duration-500 rounded-3xl"
+        <motion.div
+          animate={isIncomingCall ? { rotate: [-1, 1, -1, 1, 0], scale: [1, 1.02, 1] } : {}}
+          transition={isIncomingCall ? { repeat: Infinity, duration: 0.45 } : {}}
+          className="relative w-56 h-56 flex items-center justify-center transition-all duration-500 rounded-3xl z-10"
           style={{
             background: 'linear-gradient(145deg, #352E30, #2B2628)',
             boxShadow: '12px 12px 24px #1A1617, -12px -12px 24px #3C3437',
@@ -177,15 +212,24 @@ export const PendantDigitalTwin: React.FC<PendantDigitalTwinProps> = ({
               {details.label}
             </span>
           </div>
-        </div>
+        </motion.div>
       </div>
 
       {/* Hardware Telemetry Bar */}
-      <div className="mt-4 flex items-center justify-center gap-4 text-xs">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-dark border border-white/5 shadow-neu-sm-dark">
-          <Zap className="w-3.5 h-3.5 text-accent-peach" />
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3 text-xs">
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-dark border border-white/5 shadow-neu-sm-dark transition-all"
+          title={isDeviceBatterySynced ? "Live host machine battery level synchronized" : "Simulated battery level"}
+        >
+          <Zap className={`w-3.5 h-3.5 ${isCharging ? 'text-status-safe animate-pulse' : 'text-accent-peach'}`} />
           <span className="text-primary-dark font-medium">{battery}%</span>
-          <span className="text-muted-dark text-[11px]">({batteryDaysRemaining}d remaining)</span>
+          {isCharging && <span className="text-[10px] text-status-safe font-bold">⚡</span>}
+          <span className="text-muted-dark text-[11px]">({batteryDaysRemaining}d)</span>
+          {isDeviceBatterySynced && (
+            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-status-safe/15 text-status-safe font-extrabold border border-status-safe/30">
+              Device Synced
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-dark border border-white/5 shadow-neu-sm-dark">

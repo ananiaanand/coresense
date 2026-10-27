@@ -27,6 +27,9 @@ import {
   ChevronRight,
   Wifi,
   MapPin,
+  PhoneCall,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 interface SimulatorViewProps {
@@ -46,6 +49,10 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>('normal');
   const [caregiverAckNotification, setCaregiverAckNotification] = useState<CaregiverAckPayload | null>(null);
+  const [incomingCall, setIncomingCall] = useState<{
+    caller: string;
+    timestamp: number;
+  } | null>(null);
   const [networkHost, setNetworkHost] = useState<string>('');
   const [activeViewMode, setActiveViewMode] = useState<'twin' | 'map'>('twin');
 
@@ -83,6 +90,75 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       })
       .catch(() => {});
   }, []);
+
+  // Real Host Device Battery Synchronization (Pendant battery set to simulator running device's battery)
+  const hostBatteryRef = React.useRef<{
+    battery: number;
+    batteryDaysRemaining: number;
+    isCharging: boolean;
+  } | null>(null);
+
+  useEffect(() => {
+    let batteryManager: any = null;
+
+    const handleBatterySync = (bm: any) => {
+      const pct = Math.max(1, Math.min(100, Math.round(bm.level * 100)));
+      const days = Number(((pct / 100) * 7.0).toFixed(1));
+      const isCharging = Boolean(bm.charging);
+
+      hostBatteryRef.current = {
+        battery: pct,
+        batteryDaysRemaining: days,
+        isCharging,
+      };
+
+      setState((prev) => {
+        // If user explicitly activated low_battery scenario, keep the 12% demo level
+        if (selectedScenario === 'low_battery') return prev;
+
+        const updated: PendantState = {
+          ...prev,
+          battery: pct,
+          batteryDaysRemaining: days,
+          isDeviceBatterySynced: true,
+          isCharging,
+        };
+
+        // Broadcast synced battery state to caregiver phone
+        realtime.sendMessage({
+          type: 'STATE_SYNC',
+          payload: updated,
+        });
+
+        return updated;
+      });
+    };
+
+    const nav = navigator as any;
+    if (typeof window !== 'undefined' && nav && typeof nav.getBattery === 'function') {
+      nav.getBattery().then((bm: any) => {
+        batteryManager = bm;
+        handleBatterySync(bm);
+
+        const onLevelChange = () => handleBatterySync(bm);
+        const onChargingChange = () => handleBatterySync(bm);
+
+        bm.addEventListener('levelchange', onLevelChange);
+        bm.addEventListener('chargingchange', onChargingChange);
+      }).catch((e: any) => {
+        console.warn('Could not read host battery status:', e);
+      });
+    }
+
+    return () => {
+      if (batteryManager) {
+        try {
+          batteryManager.removeEventListener('levelchange', () => {});
+          batteryManager.removeEventListener('chargingchange', () => {});
+        } catch {}
+      }
+    };
+  }, [selectedScenario]);
 
   // Compute pairing URL: if running on localhost, use the detected Wi-Fi IP so mobile browsers can connect!
   const isLocalHost = typeof window !== 'undefined' && (
@@ -130,6 +206,17 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
           setTimeout(() => {
             setCaregiverAckNotification(null);
           }, 8000);
+        } else if (msg.type === 'CALL_WEARER') {
+          // PLAY LARGE SOS SOUND IN THIS SIMULATION RUNNING DEVICE!
+          soundEffects.startLargeSosAlarm();
+          setIncomingCall({
+            caller: msg.payload.caller || 'Caregiver (Ananya)',
+            timestamp: msg.payload.timestamp || Date.now(),
+          });
+        } else if (msg.type === 'END_CALL') {
+          // Silence large SOS alarm
+          soundEffects.stopLargeSosAlarm();
+          setIncomingCall(null);
         } else if (msg.type === 'PHONE_JOINED' || msg.type === 'REQUEST_STATE') {
           setConnectionStatus('connected');
           // Instantly sync current full state to caregiver phone so it activates immediately!
@@ -145,17 +232,53 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     });
 
     return () => {
+      soundEffects.stopLargeSosAlarm();
       realtime.leaveRoom();
     };
   }, [roomCode]);
+
+  // Silence SOS Alarm and notify caregiver phone
+  const handleSilenceSosAlarm = () => {
+    soundEffects.stopLargeSosAlarm();
+    setIncomingCall(null);
+    realtime.sendMessage({
+      type: 'END_CALL',
+      payload: {
+        endedBy: 'wearer',
+        timestamp: Date.now(),
+      },
+    });
+  };
+
+  const toggleManualSirenTest = () => {
+    if (incomingCall || soundEffects.isSosAlarmPlaying()) {
+      handleSilenceSosAlarm();
+    } else {
+      soundEffects.startLargeSosAlarm();
+      setIncomingCall({
+        caller: 'Ananya (Manual Speaker Test)',
+        timestamp: Date.now(),
+      });
+    }
+  };
 
   // Handle Scenario Click
   const handleTriggerScenario = (scenario: ScenarioType) => {
     setSelectedScenario(scenario);
 
+    let targetBattery = state.battery;
+    let targetBatteryDays = state.batteryDaysRemaining;
+    if (scenario === 'low_battery') {
+      targetBattery = 12;
+      targetBatteryDays = 0.8;
+    } else if (scenario === 'normal' && hostBatteryRef.current) {
+      targetBattery = hostBatteryRef.current.battery;
+      targetBatteryDays = hostBatteryRef.current.batteryDaysRemaining;
+    }
+
     const { alert, status, isDataConnected, newLocation } = createScenarioAlert(
       scenario,
-      state.battery,
+      targetBattery,
       state.timeOfDay,
       state.location
     );
@@ -166,6 +289,8 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
     const updatedState: PendantState = {
       ...state,
       status: status as DeviceStatus,
+      battery: targetBattery,
+      batteryDaysRemaining: targetBatteryDays,
       isDataConnected,
       location: updatedLocation,
       activeAlert: alert,
@@ -403,6 +528,44 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
         </div>
       )}
 
+      {/* Incoming Caregiver Call & Large SOS Siren Banner */}
+      {incomingCall && (
+        <div className="mt-4 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-status-alert/25 via-status-warning/20 to-status-alert/25 border-2 border-status-alert shadow-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-center gap-3.5">
+            <div className="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-status-alert/30 animate-ping" />
+              <div className="w-12 h-12 rounded-full bg-status-alert text-base-dark flex items-center justify-center shadow-lg">
+                <Volume2 className="w-6 h-6 animate-bounce" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm md:text-base font-black text-status-alert uppercase tracking-wide flex items-center gap-1.5">
+                  <PhoneCall className="w-4 h-4 animate-pulse" />
+                  <span>Incoming Caregiver Call • Large SOS Sound Active!</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full bg-status-alert/30 text-[10px] font-mono text-status-alert font-extrabold uppercase animate-pulse">
+                  85dB Hardware Siren
+                </span>
+              </div>
+              <p className="text-xs text-primary-dark font-medium leading-relaxed">
+                <span className="font-bold text-accent-peach">{incomingCall.caller}</span> tapped &quot;Call Wearer&quot; in the Caregiver App. A high-decibel acoustic SOS emergency siren is blaring on this simulation device to alert Kalyani Amma!
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0 w-full md:w-auto">
+            <button
+              onClick={handleSilenceSosAlarm}
+              className="w-full md:w-auto px-5 py-2.5 rounded-2xl bg-status-alert hover:bg-status-alert/90 text-base-dark font-black text-xs flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all"
+            >
+              <VolumeX className="w-4 h-4" />
+              <span>Silence SOS Alarm / Answer</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid: Left Column (Digital Twin & Pairing), Right Column (Tactile Scenario Trigger Pad) */}
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 my-auto py-6 flex-grow items-start">
         {/* Left Column: Digital Twin & Pairing (5 cols) */}
@@ -410,7 +573,7 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
           {/* Digital Twin & Campus Map Card */}
           <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col items-center">
             <div className="w-full flex items-center justify-between mb-3">
-              {/* Tab Selector */}
+              {/* Tab Selector & Siren Test */}
               <div className="flex items-center gap-1 p-1 rounded-xl bg-base-dark border border-white/5">
                 <button
                   type="button"
@@ -436,6 +599,19 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                   <MapPin className="w-3.5 h-3.5" />
                   <span>Christ College Map</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={toggleManualSirenTest}
+                  title="Test or silence pendant 85dB speaker alarm"
+                  className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${
+                    incomingCall
+                      ? 'bg-status-alert text-base-dark animate-pulse shadow-md'
+                      : 'text-muted-dark hover:text-primary-dark'
+                  }`}
+                >
+                  {incomingCall ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                  <span>{incomingCall ? 'Silence' : 'Test Siren'}</span>
+                </button>
               </div>
 
               <span className="text-[11px] text-accent-peach font-semibold px-2 py-0.5 rounded-full bg-accent-peach/10">
@@ -449,6 +625,10 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                 battery={state.battery}
                 batteryDaysRemaining={state.batteryDaysRemaining}
                 isDataConnected={state.isDataConnected}
+                isIncomingCall={!!incomingCall}
+                callerName={incomingCall?.caller}
+                isDeviceBatterySynced={state.isDeviceBatterySynced}
+                isCharging={state.isCharging}
                 className="my-3"
               />
             ) : (

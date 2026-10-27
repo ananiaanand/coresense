@@ -19,6 +19,12 @@ export interface Translations {
   outsideSafeZone: string;
   actions: {
     call: string;
+    callWearerSos: string;
+    endCall: string;
+    ringingWearer: string;
+    sirenActiveDevice: string;
+    ackAndCallNext: string;
+    dismiss: string;
     navigate: string;
     acknowledge: string;
     acknowledgedSuccess: string;
@@ -111,6 +117,12 @@ export const translations: Record<Language, Translations> = {
     outsideSafeZone: 'Outside Safe Boundary',
     actions: {
       call: 'Call Wearer',
+      callWearerSos: 'Call Wearer (Loud SOS Siren)',
+      endCall: 'End Call / Silence Alarm',
+      ringingWearer: 'Ringing Pendant...',
+      sirenActiveDevice: 'Large SOS alarm blaring on simulation device',
+      ackAndCallNext: 'Alert Acknowledged. Call wearer to confirm safety?',
+      dismiss: 'Dismiss',
       navigate: 'Navigate',
       acknowledge: 'Acknowledge Alert',
       acknowledgedSuccess: 'Caregiver Responded & On the Way',
@@ -217,6 +229,12 @@ export const translations: Record<Language, Translations> = {
     outsideSafeZone: 'സുരക്ഷിത മേഖലയ്ക്ക് പുറത്ത്',
     actions: {
       call: 'വിളിക്കുക',
+      callWearerSos: 'ലോക്കറ്റിലേക്ക് വിളിക്കുക (ഉച്ചത്തിലുള്ള SOS സൈറൺ)',
+      endCall: 'വിളി നിർത്തുക / സൈറൺ ഓഫ് ചെയ്യുക',
+      ringingWearer: 'ലോക്കറ്റിൽ സൈറൺ മുഴങ്ങുന്നു...',
+      sirenActiveDevice: 'സിമുലേഷൻ ഉപകരണത്തിൽ ഉച്ചത്തിലുള്ള SOS അലാറം മുഴങ്ങുന്നു',
+      ackAndCallNext: 'അറിയിപ്പ് സ്വീകരിച്ചു. കല്യാണി അമ്മയെ വിളിച്ചുറപ്പ് വരുത്തുക?',
+      dismiss: 'ഒഴിവാക്കുക',
       navigate: 'വഴി കാണിക്കുക',
       acknowledge: 'അറിയിപ്പ് സ്വീകരിച്ചു',
       acknowledgedSuccess: 'പരിചാരകൻ പ്രതികരിച്ചു, ഉടൻ എത്തും',

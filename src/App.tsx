@@ -134,12 +134,13 @@ export function App() {
         </button>
       </div>
 
-      {/* Primary Routes */}
-      {currentPath === '/app' ? (
+      {/* Primary Views (Kept mounted for instantaneous in-memory P2P sync & live cross-view alarms) */}
+      <div className={currentPath === '/app' ? 'block' : 'hidden'}>
         <CaregiverAppView roomCodeFromQuery={roomCode} />
-      ) : (
+      </div>
+      <div className={currentPath === '/simulator' ? 'block' : 'hidden'}>
         <SimulatorView initialRoomCode={roomCode} />
-      )}
+      </div>
     </div>
   );
 }

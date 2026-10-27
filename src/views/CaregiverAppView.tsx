@@ -33,6 +33,8 @@ import {
   ExternalLink,
   Shield,
   Check,
+  PhoneOff,
+  PhoneCall,
 } from 'lucide-react';
 
 interface CaregiverAppViewProps {
@@ -58,6 +60,10 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
   const [activeAlert, setActiveAlert] = useState<AlertEvent | null>(null);
   const [showCallConfirm, setShowCallConfirm] = useState(false);
   const [lastAckMessage, setLastAckMessage] = useState<string | null>(null);
+  const [isCallingWearer, setIsCallingWearer] = useState(false);
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [callEndedNotice, setCallEndedNotice] = useState<string | null>(null);
+
   const clientRef = React.useRef<RealtimeClient | null>(null);
   if (!clientRef.current) {
     clientRef.current = createRealtimeClient();
@@ -86,6 +92,10 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
           }
         } else if (msg.type === 'ALERT_TRIGGERED') {
           triggerIncomingAlert(msg.payload);
+        } else if (msg.type === 'END_CALL') {
+          setIsCallingWearer(false);
+          setCallEndedNotice(lang === 'en' ? 'Pendant silenced / call ended' : 'ലോക്കറ്റിൽ സൈറൺ നിർത്തി');
+          setTimeout(() => setCallEndedNotice(null), 4000);
         }
       },
       onConnectionChange: (status) => {
@@ -96,7 +106,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
     return () => {
       realtime.leaveRoom();
     };
-  }, [roomCode, soundEnabled]);
+  }, [roomCode, soundEnabled, lang]);
 
   const [audioUnlocked, setAudioUnlocked] = useState(false);
 
@@ -113,6 +123,24 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
       window.removeEventListener('touchstart', handleUnlock);
     };
   }, []);
+
+  // Outgoing phone ringing cadence simulation on caregiver device
+  useEffect(() => {
+    let timer: number | null = null;
+    if (isCallingWearer) {
+      timer = window.setInterval(() => {
+        setCallSeconds((s) => {
+          if (s % 3 === 0 && soundEnabled) {
+            soundEffects.playOutgoingRing();
+          }
+          return s + 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isCallingWearer, soundEnabled]);
 
   // Handle incoming alert with audio and vibration
   const triggerIncomingAlert = (alert: AlertEvent) => {
@@ -146,7 +174,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
     }
   };
 
-  // Acknowledge Alert (Sends response back to simulator!)
+  // Acknowledge Alert (Sends response back to simulator, transitions to call wearer option)
   const handleAcknowledge = () => {
     if (!activeAlert) return;
 
@@ -165,21 +193,85 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
       payload: ackPayload,
     });
 
-    // Mark locally acknowledged
-    setActiveAlert((prev) => (prev ? { ...prev, acknowledged: true } : null));
+    // Mark locally acknowledged - Keep modal open so caregiver can follow up by calling wearer!
+    setActiveAlert((prev) =>
+      prev
+        ? {
+            ...prev,
+            acknowledged: true,
+            acknowledgedAt: Date.now(),
+            acknowledgedBy: 'Ananya (Family Caregiver)',
+          }
+        : null
+    );
     setState((prev) => ({
       ...prev,
-      activeAlert: prev.activeAlert ? { ...prev.activeAlert, acknowledged: true } : null,
+      lastCaregiverAck: ackPayload,
+      activeAlert: prev.activeAlert
+        ? {
+            ...prev.activeAlert,
+            acknowledged: true,
+            acknowledgedAt: Date.now(),
+            acknowledgedBy: 'Ananya (Family Caregiver)',
+          }
+        : null,
       history: prev.history.map((item) =>
-        item.id === activeAlert.id ? { ...item, acknowledged: true } : item
+        item.id === activeAlert.id
+          ? {
+              ...item,
+              acknowledged: true,
+              acknowledgedAt: Date.now(),
+              acknowledgedBy: 'Ananya (Family Caregiver)',
+            }
+          : item
       ),
     }));
 
     setLastAckMessage(t.actions.acknowledgedSuccess);
-    setTimeout(() => {
-      setActiveAlert(null);
-      setLastAckMessage(null);
-    }, 1800);
+  };
+
+  // Trigger Wearer Emergency Call (Sends signal to simulator device to trigger large SOS alarm!)
+  const handleTriggerWearerCall = () => {
+    soundEffects.unlockAudio();
+    setIsCallingWearer(true);
+    setCallSeconds(0);
+    setShowCallConfirm(false);
+
+    if (soundEnabled) {
+      soundEffects.playOutgoingRing();
+    }
+
+    // Realtime broadcast to simulation running device to start the large SOS alarm!
+    realtime.sendMessage({
+      type: 'CALL_WEARER',
+      payload: {
+        caller: 'Ananya (Family Caregiver)',
+        timestamp: Date.now(),
+        alertId: activeAlert?.id,
+        isSosAlarm: true,
+      },
+    });
+
+    realtime.sendMessage({
+      type: 'CAREGIVER_ACK',
+      payload: {
+        alertId: activeAlert?.id || 'manual-call',
+        timestamp: Date.now(),
+        caregiverName: 'Ananya (Family Caregiver)',
+        actionTaken: 'called',
+      },
+    });
+  };
+
+  const handleEndWearerCall = () => {
+    setIsCallingWearer(false);
+    realtime.sendMessage({
+      type: 'END_CALL',
+      payload: {
+        endedBy: 'caregiver',
+        timestamp: Date.now(),
+      },
+    });
   };
 
   // Open Google Maps navigation
@@ -189,14 +281,14 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
     window.open(url, '_blank');
   };
 
-  // Trigger Phone Call
+  // Trigger Phone Call confirmation dialog
   const handleCall = () => {
-    setShowCallConfirm(true);
+    handleTriggerWearerCall();
   };
 
   const executeCall = () => {
     setShowCallConfirm(false);
-    window.location.href = 'tel:+919876543210';
+    handleTriggerWearerCall();
   };
 
   // Battery days calculation
@@ -919,37 +1011,166 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
               )}
             </div>
 
-            {/* Action Buttons: Acknowledge (sends callback), Call, Navigate */}
-            <div className="space-y-2 pt-2">
-              <button
-                onClick={handleAcknowledge}
-                className="w-full py-3 px-4 rounded-3xl bg-accent-peach text-base-dark font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform"
-              >
-                <CheckCircle className="w-4 h-4" />
-                <span>{t.actions.acknowledge}</span>
-              </button>
-
-              <div className="grid grid-cols-2 gap-2">
+            {/* Action Buttons: Before Ack vs After Ack */}
+            {!activeAlert.acknowledged ? (
+              <div className="space-y-2 pt-2">
                 <button
-                  onClick={handleCall}
-                  className="py-2.5 rounded-2xl bg-surface-dark border border-white/10 text-primary-dark font-bold text-xs flex items-center justify-center gap-1.5 shadow-neu-flat-dark active:shadow-neu-pressed-dark"
+                  onClick={handleAcknowledge}
+                  className="w-full py-3 px-4 rounded-3xl bg-accent-peach text-base-dark font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform hover:brightness-105"
                 >
-                  <Phone className="w-3.5 h-3.5 text-status-safe" />
-                  <span>{t.actions.call}</span>
+                  <CheckCircle className="w-4 h-4" />
+                  <span>{t.actions.acknowledge}</span>
                 </button>
 
-                <button
-                  onClick={handleNavigate}
-                  className="py-2.5 rounded-2xl bg-surface-dark border border-white/10 text-primary-dark font-bold text-xs flex items-center justify-center gap-1.5 shadow-neu-flat-dark active:shadow-neu-pressed-dark"
-                >
-                  <Navigation className="w-3.5 h-3.5 text-accent-peach" />
-                  <span>{t.actions.navigate}</span>
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleTriggerWearerCall}
+                    className="py-2.5 rounded-2xl bg-surface-dark border border-white/10 text-primary-dark font-bold text-xs flex items-center justify-center gap-1.5 shadow-neu-flat-dark active:shadow-neu-pressed-dark hover:border-accent-peach/30 transition-all"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-accent-peach" />
+                    <span>{t.actions.call}</span>
+                  </button>
+
+                  <button
+                    onClick={handleNavigate}
+                    className="py-2.5 rounded-2xl bg-surface-dark border border-white/10 text-primary-dark font-bold text-xs flex items-center justify-center gap-1.5 shadow-neu-flat-dark active:shadow-neu-pressed-dark"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-accent-peach" />
+                    <span>{t.actions.navigate}</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Post-Acknowledgment State: Option to Call Wearer & make large SOS sound on simulator */
+              <div className="space-y-3 pt-2 animate-fadeIn">
+                <div className="p-3 rounded-2xl bg-status-safe/15 border border-status-safe/30 text-center space-y-1">
+                  <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold text-status-safe">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>{t.actions.acknowledgedSuccess}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-dark font-medium">
+                    {lang === 'en'
+                      ? 'Telemetry updated in simulator. Next step: Call wearer now to verify condition.'
+                      : 'സിമുലേറ്ററിലേക്ക് വിവരം കൈമാറി. കല്യാണി അമ്മയെ ഉടൻ വിളിച്ചുറപ്പ് വരുത്തുക.'}
+                  </p>
+                </div>
+
+                {/* Big Prominent Call Wearer Option */}
+                <button
+                  onClick={handleTriggerWearerCall}
+                  className="w-full py-3.5 px-4 rounded-3xl bg-gradient-to-r from-accent-peach via-status-warning to-accent-peach bg-[length:200%_auto] text-base-dark font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-xl hover:shadow-accent-peach/30 active:scale-98 transition-all animate-pulse"
+                >
+                  <div className="w-6 h-6 rounded-full bg-base-dark/20 flex items-center justify-center">
+                    <PhoneCall className="w-3.5 h-3.5 text-base-dark" />
+                  </div>
+                  <span>{t.actions.callWearerSos}</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleNavigate}
+                    className="py-2.5 rounded-2xl bg-surface-dark border border-white/10 text-primary-dark font-bold text-xs flex items-center justify-center gap-1.5 shadow-neu-flat-dark active:shadow-neu-pressed-dark"
+                  >
+                    <Navigation className="w-3.5 h-3.5 text-accent-peach" />
+                    <span>{t.actions.navigate}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setActiveAlert(null)}
+                    className="py-2.5 rounded-2xl bg-surface-dark/70 border border-white/5 text-muted-dark hover:text-primary-dark font-semibold text-xs flex items-center justify-center gap-1.5 shadow-neu-sm-dark active:shadow-neu-pressed-dark transition-colors"
+                  >
+                    <span>{t.actions.dismiss}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Active Wearer Emergency Call Overlay (Sends SOS sound to simulator device) */}
+      {isCallingWearer && (
+        <div className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="w-full max-w-sm p-6 rounded-4xl bg-surface-dark border border-status-alert/40 shadow-2xl space-y-5 text-center relative overflow-hidden">
+            {/* Ambient siren glow */}
+            <div className="absolute -top-12 -left-12 w-36 h-36 bg-status-alert/20 rounded-full blur-2xl pointer-events-none" />
+            <div className="absolute -bottom-12 -right-12 w-36 h-36 bg-accent-peach/20 rounded-full blur-2xl pointer-events-none" />
+
+            {/* Pulsing Acoustic Siren Icon with sound waves */}
+            <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+              <span className="absolute inset-0 rounded-full bg-status-alert/20 animate-ping" />
+              <span className="absolute inset-2 rounded-full bg-status-alert/30 animate-pulse" />
+              <div className="relative w-14 h-14 rounded-full bg-status-alert text-base-dark flex items-center justify-center shadow-lg">
+                <PhoneCall className="w-7 h-7 animate-bounce" />
+              </div>
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-status-alert/20 border border-status-alert/30 text-status-alert text-[11px] font-extrabold uppercase tracking-wider mb-2">
+                <span className="w-2 h-2 rounded-full bg-status-alert animate-ping" />
+                <span>Pendant Intercom Active</span>
+              </div>
+              <h3 className="text-lg font-extrabold text-primary-dark">
+                {lang === 'en' ? 'Calling Kalyani Amma' : 'കല്യാണി അമ്മയെ വിളിക്കുന്നു'}
+              </h3>
+              <p className="text-xs text-muted-dark mt-1 font-mono">
+                {lang === 'en' ? 'Ringing pendant speaker' : 'ലോക്കറ്റ് സ്പീക്കർ മുഴങ്ങുന്നു'} •{' '}
+                <span className="text-accent-peach font-bold">
+                  {Math.floor(callSeconds / 60)
+                    .toString()
+                    .padStart(2, '0')}
+                  :{(callSeconds % 60).toString().padStart(2, '0')}
+                </span>
+              </p>
+            </div>
+
+            {/* Acoustic Siren Banner Notice */}
+            <div className="p-3.5 rounded-2xl bg-base-dark/80 border border-status-alert/30 text-left flex items-start gap-2.5">
+              <Volume2 className="w-4 h-4 text-status-alert flex-shrink-0 mt-0.5 animate-pulse" />
+              <div className="text-[11px] space-y-0.5">
+                <p className="text-primary-dark font-bold flex items-center gap-1.5">
+                  <span>Large SOS Sound Triggered!</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-status-alert animate-ping" />
+                </p>
+                <p className="text-muted-dark leading-relaxed">
+                  {lang === 'en'
+                    ? 'The simulation running device is now blaring an 85dB acoustic emergency siren to alert the wearer.'
+                    : 'സിമുലേഷൻ പ്രവർത്തിക്കുന്ന ഉപകരണത്തിൽ ഉച്ചത്തിലുള്ള അടിയന്തര SOS സൈറൺ മുഴങ്ങുന്നു.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Call Controls */}
+            <div className="space-y-2 pt-1">
+              <button
+                onClick={handleEndWearerCall}
+                className="w-full py-3.5 px-4 rounded-3xl bg-status-alert text-base-dark font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg active:scale-98 transition-transform hover:brightness-105"
+              >
+                <PhoneOff className="w-4 h-4" />
+                <span>{t.actions.endCall}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  window.location.href = 'tel:+919876543210';
+                }}
+                className="w-full py-2.5 px-4 rounded-2xl bg-surface-dark border border-white/10 text-muted-dark hover:text-primary-dark font-bold text-xs flex items-center justify-center gap-2 shadow-neu-sm-dark active:shadow-neu-pressed-dark"
+              >
+                <Phone className="w-3.5 h-3.5 text-accent-peach" />
+                <span>Dial Regular Cellular (+91 98765 43210)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Call Ended Toast */}
+      {callEndedNotice && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[10001] px-4 py-2.5 rounded-full bg-surface-dark/95 border border-white/10 shadow-2xl text-xs font-bold text-primary-dark flex items-center gap-2 animate-fadeIn">
+          <CheckCircle className="w-4 h-4 text-status-safe" />
+          <span>{callEndedNotice}</span>
+        </div>
+      )}
 
       {/* Call Confirmation Dialog */}
       {showCallConfirm && (
@@ -962,7 +1183,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
               Call Wearer / Neighbor?
             </h3>
             <p className="text-xs text-muted-dark">
-              Dials primary emergency contact for Kalyani Amma (+91 98765 43210).
+              Sends emergency call to wearer device and triggers loud SOS alarm.
             </p>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <button
@@ -975,7 +1196,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
                 onClick={executeCall}
                 className="py-2.5 rounded-2xl bg-status-safe text-base-dark text-xs font-bold"
               >
-                Dial Now
+                Call Now
               </button>
             </div>
           </div>

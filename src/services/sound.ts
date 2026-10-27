@@ -418,4 +418,205 @@ export const soundEffects = {
       osc.stop(now + 0.7);
     } catch {}
   },
+
+  // --- 8. LARGE SOS EMERGENCY SIREN (Simulates 85-90dB Pendant Speaker Alarm) ---
+  isSosAlarmPlaying: () => isSosSirenActive,
+
+  startLargeSosAlarm: () => {
+    try {
+      unlockAudio();
+      const ctx = getAudioContext();
+      const dest = getDestination();
+      if (!ctx || !dest) return;
+
+      if (isSosSirenActive) {
+        soundEffects.stopLargeSosAlarm();
+      }
+
+      isSosSirenActive = true;
+
+      // Cycle counter for alternating acoustic alarm patterns
+      let cycle = 0;
+
+      const playSirenPulse = () => {
+        if (!isSosSirenActive) return;
+        const now = ctx.currentTime;
+        const dur = 0.42; // each sweep duration in seconds
+
+        // Alternate frequencies for high-urgency alternating siren
+        const isHighCycle = cycle % 2 === 1;
+        const baseLow = isHighCycle ? 980 : 850;
+        const baseHigh = isHighCycle ? 1520 : 1360;
+        cycle++;
+
+        // 1. Primary piercing carrier (Sawtooth with lowpass filter for maximum acoustic cut without harsh distortion)
+        const osc1 = ctx.createOscillator();
+        const filter1 = ctx.createBiquadFilter();
+        filter1.type = 'lowpass';
+        filter1.frequency.setValueAtTime(3200, now);
+
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(baseLow, now);
+        osc1.frequency.exponentialRampToValueAtTime(baseHigh, now + dur * 0.45);
+        osc1.frequency.exponentialRampToValueAtTime(baseLow, now + dur);
+
+        // 2. Harmonic reinforcement (Triangle 1.5x overtone for penetrating body)
+        const osc2 = ctx.createOscillator();
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(baseLow * 1.5, now);
+        osc2.frequency.exponentialRampToValueAtTime(baseHigh * 1.5, now + dur * 0.45);
+        osc2.frequency.exponentialRampToValueAtTime(baseLow * 1.5, now + dur);
+
+        // 3. Sub-bass punch (Sine 0.5x for heavy speaker vibration feel)
+        const osc3 = ctx.createOscillator();
+        osc3.type = 'sine';
+        osc3.frequency.setValueAtTime(baseLow * 0.5, now);
+        osc3.frequency.exponentialRampToValueAtTime(baseHigh * 0.5, now + dur * 0.45);
+        osc3.frequency.exponentialRampToValueAtTime(baseLow * 0.5, now + dur);
+
+        // Tremolo LFO for spinning alarm beacon / speaker pulse effect
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.type = 'sine';
+        lfo.frequency.setValueAtTime(9, now); // 9 Hz rapid alarm pulse
+        lfoGain.gain.setValueAtTime(0.25, now);
+
+        // Master gain for this pulse
+        const pulseGain = ctx.createGain();
+        pulseGain.gain.setValueAtTime(0.001, now);
+        pulseGain.gain.linearRampToValueAtTime(0.95, now + 0.02); // Maximum loud gain
+        pulseGain.gain.setValueAtTime(0.95, now + dur - 0.04);
+        pulseGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+        // Hook up LFO to pulse gain
+        lfo.connect(lfoGain);
+        lfoGain.connect(pulseGain.gain);
+
+        // Connect audio paths
+        osc1.connect(filter1);
+        filter1.connect(pulseGain);
+        osc2.connect(pulseGain);
+        osc3.connect(pulseGain);
+        pulseGain.connect(dest);
+
+        // Start oscillators
+        osc1.start(now);
+        osc2.start(now);
+        osc3.start(now);
+        lfo.start(now);
+
+        const stopAt = now + dur + 0.05;
+        osc1.stop(stopAt);
+        osc2.stop(stopAt);
+        osc3.stop(stopAt);
+        lfo.stop(stopAt);
+
+        // Cleanup callback
+        const cleanup = () => {
+          try {
+            pulseGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.02);
+            setTimeout(() => {
+              try {
+                osc1.disconnect();
+                osc2.disconnect();
+                osc3.disconnect();
+                lfo.disconnect();
+                pulseGain.disconnect();
+              } catch {}
+            }, 30);
+          } catch {}
+        };
+        activeSosStopCallbacks.push(cleanup);
+      };
+
+      // Play initial sweep immediately
+      playSirenPulse();
+
+      // Loop every 430ms to maintain continuous siren blare
+      sosSirenTimer = window.setInterval(playSirenPulse, 430);
+
+      // Safety timeout: Auto-stop after 30 seconds if left running
+      if (sosAutoStopTimeout) clearTimeout(sosAutoStopTimeout);
+      sosAutoStopTimeout = window.setTimeout(() => {
+        soundEffects.stopLargeSosAlarm();
+      }, 30000);
+    } catch (e) {
+      console.warn('Could not start SOS alarm:', e);
+    }
+  },
+
+  stopLargeSosAlarm: () => {
+    isSosSirenActive = false;
+    if (sosSirenTimer !== null) {
+      clearInterval(sosSirenTimer);
+      sosSirenTimer = null;
+    }
+    if (sosAutoStopTimeout !== null) {
+      clearTimeout(sosAutoStopTimeout);
+      sosAutoStopTimeout = null;
+    }
+
+    // Execute all active node cleanup handlers
+    activeSosStopCallbacks.forEach((cb) => cb());
+    activeSosStopCallbacks = [];
+
+    // Play pleasant silencing click/tone
+    try {
+      const ctx = getAudioContext();
+      const dest = getDestination();
+      if (ctx && dest) {
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, now);
+        osc.frequency.exponentialRampToValueAtTime(392.0, now + 0.15);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.connect(gain);
+        gain.connect(dest);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      }
+    } catch {}
+  },
+
+  // Soft outgoing telephone ringtone for caregiver handset
+  playOutgoingRing: () => {
+    try {
+      const ctx = getAudioContext();
+      const dest = getDestination();
+      if (!ctx || !dest) return;
+      const now = ctx.currentTime;
+
+      // Classic US/India dual-frequency ring tone (440Hz + 480Hz)
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(440, now);
+      osc2.frequency.setValueAtTime(480, now);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.35, now + 0.05);
+      gain.gain.setValueAtTime(0.35, now + 0.85);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.95);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(dest);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 1.0);
+      osc2.stop(now + 1.0);
+    } catch {}
+  },
 };
+
+let sosSirenTimer: number | null = null;
+let isSosSirenActive = false;
+let activeSosStopCallbacks: (() => void)[] = [];
+let sosAutoStopTimeout: number | null = null;
