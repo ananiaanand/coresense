@@ -340,7 +340,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
                       {lang === 'en' ? state.wearerName.en : state.wearerName.ml}
                     </h2>
                     <span className="text-[11px] text-muted-dark font-medium">
-                      Mother • Age 78 • Kakkanad
+                      Mother • Age 78 • Irinjalakuda
                     </span>
                   </div>
                 </div>
@@ -490,7 +490,7 @@ export const CaregiverAppView: React.FC<CaregiverAppViewProps> = ({
                   </span>
                 </div>
                 <span className="text-[11px] font-mono text-status-safe">
-                  Kochi, Kerala
+                  Irinjalakuda, Kerala
                 </span>
               </div>
 

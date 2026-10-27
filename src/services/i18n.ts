@@ -171,7 +171,7 @@ export const translations: Record<Language, Translations> = {
     smsAlert: {
       badge: 'EMERGENCY SMS FALLBACK (AIRTEL/BSNL)',
       sender: 'CORESENSE-ALERT-IN',
-      body: 'CORESENSE ALERT: Kalyani Amma at Kakkanad. Mobile data connection dropped. SMS emergency link active. Location: 9.9981° N, 76.3533° E (Living Room). Battery: 84%.',
+      body: 'CORESENSE ALERT: Kalyani Amma at Christ College, Irinjalakuda. Mobile data connection dropped. SMS emergency link active. Location: 10.3558° N, 76.2137° E (Main Block). Battery: 84%.',
     },
     zones: {
       garden: {
@@ -277,7 +277,7 @@ export const translations: Record<Language, Translations> = {
     smsAlert: {
       badge: 'അടിയന്തര എസ്.എം.എസ് ബാക്കപ്പ് (ബി.എസ്.എൻ.എൽ / എയർടെൽ)',
       sender: 'CORESENSE-ALERT-IN',
-      body: 'കോർസെൻസ് മുന്നറിയിപ്പ്: കല്യാണി അമ്മ കാക്കനാട് ഉള്ള വസതിയിലാണ്. മൊബൈൽ ഇന്റർനെറ്റ് നഷ്ടപ്പെട്ടതിനാൽ SMS ബാക്കപ്പ് പ്രവർത്തിക്കുന്നു. സ്ഥാനം: 9.9981° N, 76.3533° E (സ്വീകരണമുറി). ബാറ്ററി: 84%.',
+      body: 'കോർസെൻസ് മുന്നറിയിപ്പ്: കല്യാണി അമ്മ ക്രൈസ്റ്റ് കോളേജ് ഇരിഞ്ഞാലക്കുട കാമ്പസിലാണ്. മൊബൈൽ ഇന്റർനെറ്റ് നഷ്ടപ്പെട്ടതിനാൽ SMS ബാക്കപ്പ് പ്രവർത്തിക്കുന്നു. സ്ഥാനം: 10.3558° N, 76.2137° E (പ്രധാന ബ്ലോക്ക്). ബാറ്ററി: 84%.',
     },
     zones: {
       garden: {

@@ -5,6 +5,7 @@ import {
   ScenarioType,
   DeviceStatus,
   CaregiverAckPayload,
+  LocationCoordinate,
 } from '../types';
 import {
   INITIAL_STATE,
@@ -14,6 +15,7 @@ import {
 import { createRealtimeClient, RealtimeClient, ConnectionState } from '../services/realtime';
 import { translations, Language } from '../services/i18n';
 import { PendantDigitalTwin } from '../components/PendantDigitalTwin';
+import { KeralaMap } from '../components/KeralaMap';
 import { soundEffects } from '../services/sound';
 import {
   Radio,
@@ -24,6 +26,7 @@ import {
   Check,
   ChevronRight,
   Wifi,
+  MapPin,
 } from 'lucide-react';
 
 interface SimulatorViewProps {
@@ -44,6 +47,19 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>('normal');
   const [caregiverAckNotification, setCaregiverAckNotification] = useState<CaregiverAckPayload | null>(null);
   const [networkHost, setNetworkHost] = useState<string>('');
+  const [activeViewMode, setActiveViewMode] = useState<'twin' | 'map'>('twin');
+
+  const handleMapLocationChange = (newLoc: LocationCoordinate) => {
+    const updatedState: PendantState = {
+      ...state,
+      location: newLoc,
+    };
+    setState(updatedState);
+    realtime.sendMessage({
+      type: 'STATE_SYNC',
+      payload: updatedState,
+    });
+  };
 
   const stateRef = React.useRef(state);
   stateRef.current = state;
@@ -391,26 +407,63 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
       <main className="grid grid-cols-1 lg:grid-cols-12 gap-8 my-auto py-6 flex-grow items-start">
         {/* Left Column: Digital Twin & Pairing (5 cols) */}
         <section className="lg:col-span-5 flex flex-col gap-6">
-          {/* Digital Twin Card */}
+          {/* Digital Twin & Campus Map Card */}
           <div className="p-6 rounded-4xl bg-surface-dark border border-white/5 shadow-neu-flat-dark flex flex-col items-center">
-            <div className="w-full flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-dark">
-                  Pendant Digital Twin
-                </span>
+            <div className="w-full flex items-center justify-between mb-3">
+              {/* Tab Selector */}
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-base-dark border border-white/5">
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMode('twin')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    activeViewMode === 'twin'
+                      ? 'bg-accent-peach text-base-dark shadow-sm'
+                      : 'text-muted-dark hover:text-primary-dark'
+                  }`}
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>Hardware Twin</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveViewMode('map')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                    activeViewMode === 'map'
+                      ? 'bg-accent-peach text-base-dark shadow-sm'
+                      : 'text-muted-dark hover:text-primary-dark'
+                  }`}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Christ College Map</span>
+                </button>
               </div>
+
               <span className="text-[11px] text-accent-peach font-semibold px-2 py-0.5 rounded-full bg-accent-peach/10">
-                Active Telemetry
+                {activeViewMode === 'twin' ? 'Pendant Telemetry' : 'Irinjalakuda GPS'}
               </span>
             </div>
 
-            <PendantDigitalTwin
-              status={state.status}
-              battery={state.battery}
-              batteryDaysRemaining={state.batteryDaysRemaining}
-              isDataConnected={state.isDataConnected}
-              className="my-3"
-            />
+            {activeViewMode === 'twin' ? (
+              <PendantDigitalTwin
+                status={state.status}
+                battery={state.battery}
+                batteryDaysRemaining={state.batteryDaysRemaining}
+                isDataConnected={state.isDataConnected}
+                className="my-3"
+              />
+            ) : (
+              <div className="w-full my-2">
+                <KeralaMap
+                  location={state.location}
+                  status={state.status}
+                  timeOfDay={state.timeOfDay}
+                  interactive={true}
+                  onLocationChange={handleMapLocationChange}
+                  className="h-64 w-full rounded-2xl border border-white/10"
+                  zoomLevel={17}
+                />
+              </div>
+            )}
 
             {/* Wearer profile card */}
             <div className="w-full mt-4 p-3.5 rounded-2xl bg-base-dark/50 border border-white/5 flex items-center justify-between text-xs">
@@ -420,6 +473,9 @@ export const SimulatorView: React.FC<SimulatorViewProps> = ({
                 </span>
                 <span className="font-bold text-primary-dark text-sm">
                   {lang === 'en' ? state.wearerName.en : state.wearerName.ml} (Age 78)
+                </span>
+                <span className="text-[10px] text-muted-dark block">
+                  Christ College, Irinjalakuda
                 </span>
               </div>
               <div className="text-right">
